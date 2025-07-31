@@ -53,9 +53,12 @@ export function useHabits() {
 
       // Initialize streak for new habit
       const newStreak: Streak = {
+        id: `streak_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId: 'temp-user-id',
         habitId: newHabit.id,
         current: 0,
-        best: 0
+        best: 0,
+        lastCompletionDate: null
       };
       const updatedStreaks = [...streaks, newStreak];
       setStreaks(updatedStreaks);
@@ -140,10 +143,12 @@ export function useHabits() {
 
       const newCompletion: Completion = {
         id: existingCompletion?.id || `completion_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId: 'temp-user-id',
         habitId,
         date: completionDate,
         completed: !existingCompletion?.completed,
-        timestamp: new Date().toISOString()
+        value: null,
+        timestamp: new Date()
       };
 
       let updatedCompletions: Completion[];

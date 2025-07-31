@@ -25,7 +25,7 @@ export function useUser() {
       if (userAchievements.length === 0) {
         userAchievements = DEFAULT_ACHIEVEMENTS.map(achievement => ({
           ...achievement,
-          unlockedDate: undefined
+          unlockedDate: null
         }));
         storage.setAchievements(userAchievements);
       }
