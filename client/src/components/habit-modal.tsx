@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -70,6 +70,40 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
 
   const [selectedIcon, setSelectedIcon] = useState(formData.icon);
 
+  // Update form data when initialData changes (for editing)
+  useEffect(() => {
+    if (initialData) {
+      const newFormData: InsertHabit = {
+        name: initialData.name || "",
+        description: initialData.description || "",
+        category: (initialData.category as any) || "Health",
+        frequency: (initialData.frequency as any) || "daily",
+        customDays: initialData.customDays || [],
+        target: initialData.target || undefined,
+        unit: (initialData.unit as any) || "minutes",
+        icon: initialData.icon || "🎯",
+        isActive: initialData.isActive ?? true
+      };
+      setFormData(newFormData);
+      setSelectedIcon(newFormData.icon);
+    } else {
+      // Reset form for creating new habit
+      const resetFormData: InsertHabit = {
+        name: "",
+        description: "",
+        category: "Health",
+        frequency: "daily",
+        customDays: [],
+        target: undefined,
+        unit: "minutes",
+        icon: "🎯",
+        isActive: true
+      };
+      setFormData(resetFormData);
+      setSelectedIcon("🎯");
+    }
+  }, [initialData, isOpen]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -83,19 +117,6 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
       target: formData.target || undefined
     });
     
-    // Reset form
-    setFormData({
-      name: "",
-      description: "",
-      category: "Health",
-      frequency: "daily",
-      customDays: [],
-      target: undefined,
-      unit: "minutes",
-      icon: "🎯",
-      isActive: true
-    });
-    setSelectedIcon("🎯");
     onClose();
   };
 
@@ -107,7 +128,7 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Habit</DialogTitle>
+          <DialogTitle>{initialData ? "Edit Habit" : "Create New Habit"}</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">

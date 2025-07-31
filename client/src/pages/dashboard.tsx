@@ -65,7 +65,19 @@ export function Dashboard() {
     const habit = habits.find(h => h.id === habitId);
     if (habit) {
       setEditingHabitId(habitId);
-      setEditingHabit(habit);
+      // Convert habit to InsertHabit format for editing
+      const editableHabit: InsertHabit = {
+        name: habit.name,
+        description: habit.description,
+        category: habit.category,
+        frequency: habit.frequency,
+        customDays: habit.customDays,
+        target: habit.target,
+        unit: habit.unit,
+        icon: habit.icon,
+        isActive: habit.isActive
+      };
+      setEditingHabit(editableHabit);
       setIsModalOpen(true);
     }
   };
