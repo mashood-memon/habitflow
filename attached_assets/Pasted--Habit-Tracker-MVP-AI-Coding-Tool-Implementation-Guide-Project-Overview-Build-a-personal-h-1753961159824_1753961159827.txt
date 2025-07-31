@@ -1,0 +1,197 @@
+# Habit Tracker MVP - AI Coding Tool Implementation Guide
+
+## Project Overview
+Build a personal habit tracker web application that helps users build sustainable habits through visual progress tracking, gamification, and streak motivation. Focus on core functionality that can be implemented with local storage and client-side JavaScript.
+
+## Core Features to Implement
+
+### 1. Habit Management System
+- **Create Habits**: Simple form to add new habits with:
+  - Habit name (required)
+  - Description (optional)
+  - Category selection (Health, Productivity, Personal, Learning, etc.)
+  - Frequency (Daily, Weekly, Custom days of week)
+  - Target time or count (optional)
+  - Custom icon/emoji selection
+- **Edit/Delete Habits**: Full CRUD operations for habit management
+- **Habit Status Toggle**: Easy one-click completion marking
+
+### 2. Progress Tracking & Visualization
+- **Daily Dashboard**: Today's habits with completion status
+- **Streak Counter**: Current streak and best streak for each habit
+- **Calendar View**: Monthly calendar showing completion patterns with color coding
+- **Heat Map**: GitHub-style contribution graph for the past year
+- **Progress Charts**: Simple bar/line charts showing weekly/monthly completion rates
+- **Statistics Panel**: Total habits completed, average completion rate, active streaks
+
+### 3. Gamification Elements
+- **Experience Points**: Earn XP for completing habits (base points + streak bonuses)
+- **User Level**: Level progression based on total XP with visual level display
+- **Achievement Badges**: Unlock badges for milestones:
+  - First habit completed
+  - 7-day streak
+  - 30-day streak
+  - Perfect week (all habits completed)
+  - Habit master (100 total completions)
+  - Level milestones (Level 5, 10, 25, etc.)
+- **Daily Score**: Visual representation of today's completion percentage
+
+### 4. Visual Design & UX
+- **Clean Dashboard**: Card-based layout showing today's habits
+- **Progress Animations**: Smooth animations for completing habits
+- **Color-Coded System**: Different colors for different habit categories
+- **Responsive Design**: Works well on mobile and desktop
+- **Dark/Light Theme**: Toggle between themes
+- **Celebration Effects**: Confetti or other visual feedback for achievements
+
+### 5. Data Persistence
+- **Local Storage**: Save all data to browser's localStorage
+- **Data Export**: Download habit data as JSON file
+- **Data Import**: Upload and restore from exported JSON file
+- **Auto-save**: Automatically save changes without manual save buttons
+
+## Technical Implementation Guidelines
+
+### Tech Stack Recommendations
+- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
+- **Styling**: CSS Grid/Flexbox or Tailwind CSS
+- **Charts**: Chart.js or similar lightweight charting library
+- **Icons**: Font Awesome or Lucide React icons
+- **Storage**: Browser localStorage API
+- **Optional**: React/Vue.js for component-based architecture
+
+### Data Structure
+```javascript
+// Example data structure for localStorage
+{
+  "user": {
+    "name": "User Name",
+    "level": 5,
+    "totalXP": 1250,
+    "theme": "light"
+  },
+  "habits": [
+    {
+      "id": "habit_1",
+      "name": "Morning Exercise",
+      "description": "30 minutes of exercise",
+      "category": "Health",
+      "frequency": "daily",
+      "target": 30,
+      "unit": "minutes",
+      "icon": "🏃‍♂️",
+      "createdDate": "2024-01-01",
+      "currentStreak": 15,
+      "bestStreak": 28
+    }
+  ],
+  "completions": [
+    {
+      "habitId": "habit_1",
+      "date": "2024-01-15",
+      "completed": true,
+      "value": 30,
+      "timestamp": "2024-01-15T07:30:00Z"
+    }
+  ],
+  "achievements": [
+    {
+      "id": "first_habit",
+      "name": "Getting Started",
+      "description": "Complete your first habit",
+      "unlockedDate": "2024-01-01",
+      "icon": "🎯"
+    }
+  ]
+}
+```
+
+### Key UI Components to Build
+
+#### 1. Dashboard View
+- Header with user level, XP, and theme toggle
+- "Add New Habit" button prominently displayed
+- Grid of today's habits with completion checkboxes
+- Daily progress circle showing completion percentage
+- Recent achievements notification area
+
+#### 2. Habit Creation Modal
+- Form with all necessary fields
+- Icon/emoji picker
+- Frequency selector (daily, specific days)
+- Category dropdown
+- Save/Cancel buttons
+
+#### 3. Progress Views
+- Tab navigation between Dashboard, Calendar, Statistics
+- Calendar grid with color-coded completion status
+- Heat map visualization for long-term patterns
+- Simple charts showing trends
+
+#### 4. Statistics Dashboard
+- Key metrics cards (total habits, completion rate, current streaks)
+- Achievement gallery with locked/unlocked badges
+- Progress charts and trends
+- Personal records section
+
+### User Experience Flow
+1. **First Visit**: Welcome screen explaining the app, prompt to create first habit
+2. **Daily Use**: Dashboard shows today's habits, easy one-click completion
+3. **Progress Review**: Calendar and statistics views for motivation
+4. **Achievement Moments**: Clear notifications when badges are earned
+5. **Habit Management**: Easy access to edit, delete, or add new habits
+
+## Implementation Priorities
+
+### Phase 1 (Core MVP - Week 1)
+- Basic habit CRUD operations
+- Daily completion tracking
+- Simple streak counters
+- Local storage persistence
+- Responsive layout
+
+### Phase 2 (Gamification - Week 2)
+- XP system and leveling
+- Achievement badges
+- Visual celebration effects
+- Statistics dashboard
+
+### Phase 3 (Visualization - Week 3)
+- Calendar view with completion history
+- Heat map visualization
+- Basic charts and trends
+- Data export/import functionality
+
+### Phase 4 (Polish - Week 4)
+- Theme system (dark/light mode)
+- Animations and micro-interactions
+- Mobile optimization
+- Advanced statistics and insights
+
+## Success Criteria
+- Users can create, track, and complete habits easily
+- Visual progress motivates continued use
+- Gamification elements provide sense of achievement
+- App works reliably offline with local storage
+- Clean, intuitive interface that requires no tutorial
+- Fast loading and responsive on all devices
+
+## Technical Constraints
+- No backend required - everything runs client-side
+- No user authentication needed
+- No real-time features or push notifications
+- Focus on single-user experience
+- Data stays in browser's localStorage
+- Use only libraries available via CDN
+
+## Sample Implementation Approach
+1. Start with basic HTML structure and CSS styling
+2. Implement habit creation and storage functions
+3. Build daily dashboard with completion tracking
+4. Add streak calculation and XP system
+5. Create calendar and visualization components
+6. Implement achievement system
+7. Add export/import functionality
+8. Polish UI and add animations
+
+This scope is perfectly suited for AI coding tools and can be built as a fully functional, engaging habit tracker without requiring complex backend infrastructure or advanced integrations.
