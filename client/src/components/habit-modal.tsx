@@ -65,7 +65,8 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
     target: initialData?.target || undefined,
     unit: initialData?.unit || "minutes",
     icon: initialData?.icon || "🎯",
-    isActive: initialData?.isActive ?? true
+    isActive: initialData?.isActive ?? true,
+    userId: "temp-user-id" // Temporary until we implement authentication
   });
 
   const [selectedIcon, setSelectedIcon] = useState(formData.icon);
@@ -82,7 +83,8 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
         target: initialData.target || undefined,
         unit: (initialData.unit as any) || "minutes",
         icon: initialData.icon || "🎯",
-        isActive: initialData.isActive ?? true
+        isActive: initialData.isActive ?? true,
+        userId: "temp-user-id"
       };
       setFormData(newFormData);
       setSelectedIcon(newFormData.icon);
@@ -97,7 +99,8 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
         target: undefined,
         unit: "minutes",
         icon: "🎯",
-        isActive: true
+        isActive: true,
+        userId: "temp-user-id"
       };
       setFormData(resetFormData);
       setSelectedIcon("🎯");
@@ -149,7 +152,7 @@ export function HabitModal({ isOpen, onClose, onSave, initialData }: HabitModalP
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={formData.description}
+              value={formData.description || ""}
               onChange={(e) => handleInputChange("description", e.target.value)}
               placeholder="Optional description"
               rows={3}

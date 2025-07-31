@@ -20,9 +20,10 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Server**: Express.js with TypeScript
-- **Database**: Currently using in-memory storage with plans for PostgreSQL via Drizzle ORM
-- **API**: RESTful API structure (routes not yet implemented)
+- **Database**: PostgreSQL with Drizzle ORM (recently migrated from localStorage)
+- **API**: RESTful API structure with database integration
 - **Session Management**: Basic session handling setup
+- **Data Storage**: Complete database schema with users, habits, completions, achievements, and streaks tables
 
 ### Key Design Decisions
 

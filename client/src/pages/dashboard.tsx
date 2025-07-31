@@ -68,14 +68,15 @@ export function Dashboard() {
       // Convert habit to InsertHabit format for editing
       const editableHabit: InsertHabit = {
         name: habit.name,
-        description: habit.description,
+        description: habit.description || undefined,
         category: habit.category,
         frequency: habit.frequency,
         customDays: habit.customDays,
         target: habit.target,
         unit: habit.unit,
         icon: habit.icon,
-        isActive: habit.isActive
+        isActive: habit.isActive,
+        userId: "temp-user-id" // Temporary until we implement authentication
       };
       setEditingHabit(editableHabit);
       setIsModalOpen(true);
@@ -224,7 +225,7 @@ export function Dashboard() {
                 key={habit.id}
                 habit={{
                   ...habit,
-                  description: habits.find(h => h.id === habit.id)?.description
+                  description: habits.find(h => h.id === habit.id)?.description || undefined
                 }}
                 onToggleCompletion={handleToggleCompletion}
                 onEdit={handleEditHabit}

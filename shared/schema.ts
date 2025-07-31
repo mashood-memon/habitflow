@@ -1,64 +1,80 @@
 import { z } from "zod";
+import { pgTable, text, boolean, integer, timestamp, uuid } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 
-export const habitSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1, "Habit name is required"),
-  description: z.string().optional(),
-  category: z.enum(["Health", "Productivity", "Personal", "Learning", "Social", "Finance"]),
-  frequency: z.enum(["daily", "weekly", "custom"]),
-  customDays: z.array(z.number().min(0).max(6)).optional(), // 0-6 for Sunday-Saturday
-  target: z.number().optional(),
-  unit: z.enum(["minutes", "hours", "pages", "times", "glasses", "sessions"]).optional(),
-  icon: z.string().default("🎯"),
-  createdDate: z.string(),
-  isActive: z.boolean().default(true)
+
+
+// Drizzle ORM Tables
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull().default("User"),
+  level: integer("level").notNull().default(1),
+  totalXP: integer("total_xp").notNull().default(0),
+  theme: text("theme", { enum: ["light", "dark"] }).notNull().default("light"),
+  joinDate: timestamp("join_date").notNull().defaultNow()
 });
 
-export const completionSchema = z.object({
-  id: z.string(),
-  habitId: z.string(),
-  date: z.string(), // YYYY-MM-DD format
-  completed: z.boolean(),
-  value: z.number().optional(), // actual value if target is set
-  timestamp: z.string() // ISO string
+export const habits = pgTable("habits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category", { enum: ["Health", "Productivity", "Personal", "Learning", "Social", "Finance"] }).notNull(),
+  frequency: text("frequency", { enum: ["daily", "weekly", "custom"] }).notNull(),
+  customDays: integer("custom_days").array(),
+  target: integer("target"),
+  unit: text("unit", { enum: ["minutes", "hours", "pages", "times", "glasses", "sessions"] }),
+  icon: text("icon").notNull().default("🎯"),
+  createdDate: timestamp("created_date").notNull().defaultNow(),
+  isActive: boolean("is_active").notNull().default(true)
 });
 
-export const achievementSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  icon: z.string(),
-  category: z.enum(["streak", "completion", "level", "consistency", "milestone"]),
-  requirement: z.number(), // threshold for unlocking
-  unlockedDate: z.string().optional() // ISO string when unlocked
+export const completions = pgTable("completions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  habitId: uuid("habit_id").notNull().references(() => habits.id, { onDelete: "cascade" }),
+  date: text("date").notNull(), // YYYY-MM-DD format
+  completed: boolean("completed").notNull(),
+  value: integer("value"),
+  timestamp: timestamp("timestamp").notNull().defaultNow()
 });
 
-export const userSchema = z.object({
-  id: z.string(),
-  name: z.string().default("User"),
-  level: z.number().default(1),
-  totalXP: z.number().default(0),
-  theme: z.enum(["light", "dark"]).default("light"),
-  joinDate: z.string()
+export const achievements = pgTable("achievements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  icon: text("icon").notNull(),
+  category: text("category", { enum: ["streak", "completion", "level", "consistency", "milestone"] }).notNull(),
+  requirement: integer("requirement").notNull(),
+  unlockedDate: timestamp("unlocked_date")
 });
 
-export const streakSchema = z.object({
-  habitId: z.string(),
-  current: z.number().default(0),
-  best: z.number().default(0),
-  lastCompletionDate: z.string().optional()
+export const streaks = pgTable("streaks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  habitId: uuid("habit_id").notNull().references(() => habits.id, { onDelete: "cascade" }),
+  current: integer("current").notNull().default(0),
+  best: integer("best").notNull().default(0),
+  lastCompletionDate: text("last_completion_date")
 });
 
-export type Habit = z.infer<typeof habitSchema>;
-export type Completion = z.infer<typeof completionSchema>;
-export type Achievement = z.infer<typeof achievementSchema>;
-export type User = z.infer<typeof userSchema>;
-export type Streak = z.infer<typeof streakSchema>;
+// Create insert schemas using drizzle-zod
+export const insertUserSchemaDb = createInsertSchema(users);
+export const insertHabitSchemaDb = createInsertSchema(habits);
+export const insertCompletionSchemaDb = createInsertSchema(completions);
+export const insertAchievementSchemaDb = createInsertSchema(achievements);
+export const insertStreakSchemaDb = createInsertSchema(streaks);
 
-export const insertHabitSchema = habitSchema.omit({ id: true, createdDate: true });
-export const insertCompletionSchema = completionSchema.omit({ id: true, timestamp: true });
-export const insertUserSchema = userSchema.omit({ id: true, joinDate: true });
+// Infer types from tables
+export type User = typeof users.$inferSelect;
+export type Habit = typeof habits.$inferSelect;
+export type Completion = typeof completions.$inferSelect;
+export type Achievement = typeof achievements.$inferSelect;
+export type Streak = typeof streaks.$inferSelect;
 
-export type InsertHabit = z.infer<typeof insertHabitSchema>;
-export type InsertCompletion = z.infer<typeof insertCompletionSchema>;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertUser = typeof users.$inferInsert;
+export type InsertHabit = typeof habits.$inferInsert;
+export type InsertCompletion = typeof completions.$inferInsert;
+export type InsertAchievement = typeof achievements.$inferInsert;
+export type InsertStreak = typeof streaks.$inferInsert;
