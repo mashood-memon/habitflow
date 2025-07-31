@@ -51,14 +51,15 @@ export function useUser() {
     } else {
       root.classList.remove("dark");
     }
-    
-    // Update user theme in storage
-    if (user) {
-      const updatedUser = { ...user, theme };
-      setUser(updatedUser);
+  }, [theme]);
+
+  // Update user theme in storage when theme changes
+  useEffect(() => {
+    if (user && user.theme !== theme) {
       storage.updateUser({ theme });
+      setUser(prev => prev ? { ...prev, theme } : null);
     }
-  }, [theme, user]);
+  }, [theme]);
 
   const updateUserStats = useCallback((habits: any[], completions: any[], streaks: any[]) => {
     if (!user) return;

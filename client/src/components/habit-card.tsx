@@ -8,6 +8,7 @@ interface HabitCardProps {
   habit: {
     id: string;
     name: string;
+    description?: string;
     category: string;
     icon: string;
     target?: number;
@@ -58,7 +59,12 @@ export function HabitCard({ habit, onToggleCompletion, onEdit }: HabitCardProps)
               )}>
                 {habit.name}
               </h3>
-              <Badge variant="secondary" className={cn("text-xs font-medium", textColor)}>
+              {habit.description && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {habit.description}
+                </p>
+              )}
+              <Badge variant="secondary" className={cn("text-xs font-medium mt-2", textColor)}>
                 {habit.category}
               </Badge>
             </div>

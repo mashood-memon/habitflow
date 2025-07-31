@@ -14,12 +14,15 @@ import { InsertHabit } from "@shared/schema";
 
 export function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editingHabit, setEditingHabit] = useState<InsertHabit | null>(null);
   const { 
     habits, 
     completions, 
     streaks, 
     isLoading, 
     createHabit, 
+    updateHabit,
     toggleHabitCompletion, 
     getTodayHabits, 
     getTodayStats 
@@ -37,7 +40,7 @@ export function Dashboard() {
     if (!isLoading && habits.length > 0) {
       updateUserStats(habits, completions, streaks);
     }
-  }, [habits, completions, streaks, isLoading, updateUserStats]);
+  }, [isLoading]);
 
   const todayHabits = getTodayHabits();
   const todayStats = getTodayStats();
@@ -51,10 +54,35 @@ export function Dashboard() {
 
   const handleCreateHabit = (habitData: InsertHabit) => {
     createHabit(habitData);
+    setIsModalOpen(false);
   };
 
   const handleToggleCompletion = (habitId: string) => {
     toggleHabitCompletion(habitId);
+  };
+
+  const handleEditHabit = (habitId: string) => {
+    const habit = habits.find(h => h.id === habitId);
+    if (habit) {
+      setEditingHabitId(habitId);
+      setEditingHabit(habit);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleSaveEdit = (habitData: InsertHabit) => {
+    if (editingHabitId) {
+      updateHabit(editingHabitId, habitData);
+    }
+    setIsModalOpen(false);
+    setEditingHabitId(null);
+    setEditingHabit(null);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingHabitId(null);
+    setEditingHabit(null);
   };
 
   if (isLoading) {
@@ -182,8 +210,12 @@ export function Dashboard() {
             {todayHabits.map((habit) => (
               <HabitCard
                 key={habit.id}
-                habit={habit}
+                habit={{
+                  ...habit,
+                  description: habits.find(h => h.id === habit.id)?.description
+                }}
                 onToggleCompletion={handleToggleCompletion}
+                onEdit={handleEditHabit}
               />
             ))}
           </div>
@@ -218,11 +250,12 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Habit Creation Modal */}
+      {/* Habit Creation/Edit Modal */}
       <HabitModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleCreateHabit}
+        onClose={handleCloseModal}
+        onSave={editingHabitId ? handleSaveEdit : handleCreateHabit}
+        initialData={editingHabit || undefined}
       />
     </div>
   );
