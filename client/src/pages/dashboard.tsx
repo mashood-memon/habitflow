@@ -225,7 +225,9 @@ export function Dashboard() {
                 key={habit.id}
                 habit={{
                   ...habit,
-                  description: habits.find(h => h.id === habit.id)?.description || undefined
+                  description: habits.find(h => h.id === habit.id)?.description || undefined,
+                  target: habit.target || undefined,
+                  unit: habit.unit || undefined
                 }}
                 onToggleCompletion={handleToggleCompletion}
                 onEdit={handleEditHabit}
