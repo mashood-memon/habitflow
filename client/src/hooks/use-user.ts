@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useUser as useClerkUser, useAuth } from '@clerk/clerk-react';
 import { User, Achievement } from "@shared/schema";
 import { storage } from "@/lib/storage";
 import { calculateXP, calculateLevel, getXPForNextLevel } from "@/lib/calculations";
@@ -6,42 +7,64 @@ import { checkNewAchievements, DEFAULT_ACHIEVEMENTS } from "@/lib/achievements";
 import { useLocalStorage } from "./use-local-storage";
 import { useToast } from "@/hooks/use-toast";
 
-const DEFAULT_USER_ID = 'temp-user-id';
-
 export function useUser() {
+  const { user: clerkUser, isLoaded: clerkLoaded } = useClerkUser();
+  const { getToken } = useAuth();
   const [user, setUser] = useState<User | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [theme, setTheme] = useLocalStorage<"light" | "dark">("theme", "light");
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // API helper functions with localStorage fallback
+  // API helper functions with authentication
   const apiCall = async (url: string, options?: RequestInit) => {
-    console.log(`[API] Calling: ${options?.method || 'GET'} ${url}`);
+    console.log(`[USER API] Calling: ${options?.method || 'GET'} ${url}`);
+    
     try {
+      // Get JWT token from Clerk
+      const token = await getToken();
+      console.log('[USER API] Token obtained:', !!token);
+      
       const response = await fetch(url, {
+        ...options,
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...options?.headers,
         },
-        ...options,
       });
       
+      console.log('[USER API] Response status:', response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[USER API] Error response:', errorText);
         throw new Error(`API call failed: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log(`[API] Success: ${url}`, data);
+      console.log(`[USER API] Success: ${url}`, data);
       return data;
     } catch (error) {
-      console.error(`[API] Failed: ${url}`, error);
+      console.error(`[USER API] Failed: ${url}`, error);
       throw error; // Re-throw to handle in calling code
     }
   };
 
   // Load user data and initialize achievements from API with localStorage fallback
   useEffect(() => {
+    // Don't load data if Clerk hasn't loaded yet or user is not authenticated
+    if (!clerkLoaded || !clerkUser?.id) {
+      console.log('[USER] Waiting for Clerk to load or user to authenticate');
+      console.log('[USER] Clerk loaded:', clerkLoaded);
+      console.log('[USER] Clerk user ID:', clerkUser?.id);
+      if (clerkLoaded && !clerkUser?.id) {
+        // Clerk loaded but no user - this means user is not signed in
+        setIsLoading(false);
+      }
+      return;
+    }
+
     const loadUserData = async () => {
       try {
         setIsLoading(true);
@@ -50,8 +73,8 @@ export function useUser() {
         try {
           console.log('[API] Loading user data from database...');
           const [userData, achievementsData] = await Promise.all([
-            apiCall(`/api/user/${DEFAULT_USER_ID}`).catch(() => null),
-            apiCall(`/api/achievements?userId=${DEFAULT_USER_ID}`)
+            apiCall(`/api/user/${clerkUser.id}`).catch(() => null),
+            apiCall(`/api/achievements?userId=${clerkUser.id}`)
           ]);
 
           console.log('[API] User data loaded:', {
@@ -66,8 +89,8 @@ export function useUser() {
           } else {
             // Create default user if not found in database
             const defaultUser = {
-              id: DEFAULT_USER_ID,
-              name: 'User',
+              id: clerkUser.id,
+              name: clerkUser.firstName || clerkUser.username || 'User',
               level: 1,
               totalXP: 0,
               theme: theme,
@@ -82,11 +105,23 @@ export function useUser() {
               });
               setUser(createdUser);
               storage.updateUser(createdUser);
-              console.log('[API] New user created successfully');
+              console.log('[API] New user created successfully:', createdUser);
             } catch (createError) {
-              console.error('[API] Failed to create user, using localStorage fallback');
+              console.error('[API] Failed to create user:', createError);
+              
+              // Show user-friendly error
+              toast({
+                title: "Authentication Error",
+                description: "Failed to set up user account. Using offline mode.",
+                variant: "destructive"
+              });
+              
+              // Fallback to localStorage
               const localUser = storage.getUser();
-              setUser(localUser);
+              // Update the local user with correct Clerk ID
+              const updatedLocalUser = { ...localUser, id: clerkUser.id };
+              storage.setUser(updatedLocalUser);
+              setUser(updatedLocalUser);
             }
           }
 
@@ -97,7 +132,7 @@ export function useUser() {
             console.log('[API] No achievements found, creating defaults...');
             userAchievements = DEFAULT_ACHIEVEMENTS.map(achievement => ({
               ...achievement,
-              userId: DEFAULT_USER_ID,
+              userId: clerkUser.id,
               unlockedDate: null
             }));
             
@@ -161,7 +196,7 @@ export function useUser() {
     };
 
     loadUserData();
-  }, [theme, toast]);
+  }, [theme, toast, clerkLoaded, clerkUser?.id]);
 
   // Apply theme to document
   useEffect(() => {

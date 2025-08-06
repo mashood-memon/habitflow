@@ -1,53 +1,38 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { clerkMiddleware, getAuth } from '@clerk/express';
 import { storage } from "./storage";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 import { users, habits, completions, achievements, streaks } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // We'll create a default user UUID or get it from database
-  let DEFAULT_USER_ID = 'temp-user-id'; // Will be replaced with actual UUID
+  // Add Clerk middleware
+  // Configure Clerk middleware with proper secret key
+  app.use(clerkMiddleware({
+    secretKey: process.env.CLERK_SECRET_KEY
+  }));
+  
+  console.log('[SERVER] Clerk secret key loaded:', !!process.env.CLERK_SECRET_KEY);
+  console.log('[SERVER] Clerk secret key length:', process.env.CLERK_SECRET_KEY?.length || 0);
 
-  // Initialize default user
-  const initializeDefaultUser = async () => {
-    try {
-      // Try to find existing default user
-      const existingUsers = await db.select().from(users).limit(1);
-      if (existingUsers.length > 0) {
-        DEFAULT_USER_ID = existingUsers[0].id;
-        console.log('[INIT] Using existing user:', DEFAULT_USER_ID);
-        return;
-      }
-
-      // Create default user if none exists
-      const defaultUserData = {
-        name: 'Default User',
-        level: 1,
-        totalXP: 0,
-        theme: 'light' as const,
-        joinDate: new Date()
-      };
-      
-      const [newUser] = await db.insert(users).values(defaultUserData).returning();
-      DEFAULT_USER_ID = newUser.id;
-      console.log('[INIT] Created default user:', DEFAULT_USER_ID);
-    } catch (error) {
-      console.error('[INIT] Error initializing default user:', error);
+  // Authentication middleware for API routes
+  const requireAuth = (req: any, res: any, next: any) => {
+    console.log('[AUTH] Starting authentication check...');
+    console.log('[AUTH] Authorization header:', req.headers.authorization);
+    console.log('[AUTH] All headers:', Object.keys(req.headers));
+    
+    const { userId } = getAuth(req);
+    console.log('[AUTH] Extracted userId from Clerk:', userId);
+    
+    if (!userId) {
+      console.error('[AUTH] No userId found, authentication failed');
+      return res.status(401).json({ error: 'Unauthorized' });
     }
+    console.log('[AUTH] Authentication successful for user:', userId);
+    req.userId = userId;
+    next();
   };
-
-  // Initialize the default user
-  await initializeDefaultUser();
-
-  // Endpoint to get the default user ID
-  app.get("/api/default-user", async (req, res) => {
-    try {
-      res.json({ userId: DEFAULT_USER_ID });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get default user ID" });
-    }
-  });
 
   // Database status endpoint for debugging
   app.get("/api/db-status", async (req, res) => {
@@ -82,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User routes
-  app.get("/api/user/:id", async (req, res) => {
+  app.get("/api/user/:id", requireAuth, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.params.id);
       if (!user) {
@@ -94,16 +79,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/user", async (req, res) => {
+  app.post("/api/user", requireAuth, async (req: any, res) => {
     try {
-      const user = await storage.createUser(req.body);
+      console.log('[API] Creating user with data:', req.body);
+      console.log('[API] Authenticated user ID:', req.userId);
+      
+      // Ensure the user ID from Clerk matches the request body
+      const userData = {
+        ...req.body,
+        id: req.userId // Use the authenticated user ID from Clerk
+      };
+      
+      console.log('[API] Processed user data:', userData);
+      const user = await storage.createUser(userData);
+      console.log('[API] User created successfully:', user);
       res.json(user);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create user" });
+      console.error('[API] Error creating user:', error);
+      res.status(500).json({ message: "Failed to create user", error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
-  app.put("/api/user/:id", async (req, res) => {
+  app.put("/api/user/:id", requireAuth, async (req, res) => {
     try {
       const user = await storage.updateUser(req.params.id, req.body);
       if (!user) {
@@ -116,11 +113,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Habit routes
-  app.get("/api/habits", async (req, res) => {
+  app.get("/api/habits", requireAuth, async (req: any, res) => {
     try {
-      const userId = req.query.userId as string || DEFAULT_USER_ID;
-      console.log(`[API] Getting habits for user: ${userId}`);
-      const habits = await storage.getHabits(userId);
+      console.log(`[API] Getting habits for user: ${req.userId}`);
+      const habits = await storage.getHabits(req.userId);
       console.log(`[API] Found ${habits.length} habits`);
       res.json(habits);
     } catch (error) {
@@ -129,12 +125,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/habits", async (req, res) => {
+  app.post("/api/habits", requireAuth, async (req: any, res) => {
     try {
       console.log('[API] Creating habit with data:', req.body);
+      console.log('[API] Authenticated user ID:', req.userId);
+      
+      // First, check if the user exists
+      const userExists = await storage.getUser(req.userId);
+      if (!userExists) {
+        console.error('[API] User not found in database:', req.userId);
+        return res.status(400).json({ 
+          message: "User not found in database. Please ensure user is created first.",
+          userId: req.userId
+        });
+      }
+      
       const habitData = {
         ...req.body,
-        userId: req.body.userId || DEFAULT_USER_ID,
+        userId: req.userId,
         // Remove id, let the database generate UUID
         createdDate: req.body.createdDate ? new Date(req.body.createdDate) : new Date(),
         isActive: req.body.isActive !== undefined ? req.body.isActive : true
@@ -151,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/habits/:id", async (req, res) => {
+  app.put("/api/habits/:id", requireAuth, async (req, res) => {
     try {
       const habit = await storage.updateHabit(req.params.id, req.body);
       if (!habit) {
@@ -163,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/habits/:id", async (req, res) => {
+  app.delete("/api/habits/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteHabit(req.params.id);
       res.json({ message: "Habit deleted successfully" });
@@ -173,24 +181,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Completion routes
-  app.get("/api/completions", async (req, res) => {
+  app.get("/api/completions", requireAuth, async (req: any, res) => {
     try {
-      const userId = req.query.userId as string || DEFAULT_USER_ID;
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
-      const completions = await storage.getCompletions(userId, startDate, endDate);
+      const completions = await storage.getCompletions(req.userId, startDate, endDate);
       res.json(completions);
     } catch (error) {
       res.status(500).json({ message: "Failed to get completions" });
     }
   });
 
-  app.post("/api/completions", async (req, res) => {
+  app.post("/api/completions", requireAuth, async (req: any, res) => {
     try {
       console.log('[API] Creating completion with data:', req.body);
       const completionData = {
         ...req.body,
-        userId: req.body.userId || DEFAULT_USER_ID,
+        userId: req.userId,
         // Remove id, let the database generate UUID
         timestamp: req.body.timestamp ? new Date(req.body.timestamp) : new Date()
       };
@@ -206,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/completions/:id", async (req, res) => {
+  app.put("/api/completions/:id", requireAuth, async (req, res) => {
     try {
       const completion = await storage.updateCompletion(req.params.id, req.body);
       if (!completion) {
@@ -218,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/completions/:id", async (req, res) => {
+  app.delete("/api/completions/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteCompletion(req.params.id);
       res.json({ message: "Completion deleted successfully" });
@@ -228,21 +235,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Streak routes
-  app.get("/api/streaks", async (req, res) => {
+  app.get("/api/streaks", requireAuth, async (req: any, res) => {
     try {
-      const userId = req.query.userId as string || DEFAULT_USER_ID;
-      const streaks = await storage.getStreaks(userId);
+      const streaks = await storage.getStreaks(req.userId);
       res.json(streaks);
     } catch (error) {
       res.status(500).json({ message: "Failed to get streaks" });
     }
   });
 
-  app.post("/api/streaks", async (req, res) => {
+  app.post("/api/streaks", requireAuth, async (req: any, res) => {
     try {
       const streakData = {
         ...req.body,
-        userId: req.body.userId || DEFAULT_USER_ID,
+        userId: req.userId,
         // Remove id, let the database generate UUID
       };
       // Remove the id field if it exists, let DB generate UUID
@@ -255,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/streaks/:id", async (req, res) => {
+  app.put("/api/streaks/:id", requireAuth, async (req, res) => {
     try {
       const streak = await storage.updateStreak(req.params.id, req.body);
       if (!streak) {
@@ -267,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/streaks/:id", async (req, res) => {
+  app.delete("/api/streaks/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteStreak(req.params.id);
       res.json({ message: "Streak deleted successfully" });
@@ -277,21 +283,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Achievement routes
-  app.get("/api/achievements", async (req, res) => {
+  app.get("/api/achievements", requireAuth, async (req: any, res) => {
     try {
-      const userId = req.query.userId as string || DEFAULT_USER_ID;
-      const achievements = await storage.getAchievements(userId);
+      const achievements = await storage.getAchievements(req.userId);
       res.json(achievements);
     } catch (error) {
       res.status(500).json({ message: "Failed to get achievements" });
     }
   });
 
-  app.post("/api/achievements", async (req, res) => {
+  app.post("/api/achievements", requireAuth, async (req: any, res) => {
     try {
       const achievementData = {
         ...req.body,
-        userId: req.body.userId || DEFAULT_USER_ID,
+        userId: req.userId,
         id: req.body.id || `achievement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       };
       const achievement = await storage.createAchievement(achievementData);
@@ -301,7 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/achievements/:id", async (req, res) => {
+  app.put("/api/achievements/:id", requireAuth, async (req, res) => {
     try {
       const achievement = await storage.updateAchievement(req.params.id, req.body);
       if (!achievement) {

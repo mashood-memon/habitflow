@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Moon, Sun, Settings } from "lucide-react";
+import { UserButton } from '@clerk/clerk-react';
 import { useUser } from "@/hooks/use-user";
 
 export function Header() {
@@ -59,6 +60,9 @@ export function Header() {
             <Button variant="ghost" size="icon" className="h-9 w-9">
               <Settings className="h-4 w-4" />
             </Button>
+            
+            {/* User Profile */}
+            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
       </div>

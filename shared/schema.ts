@@ -6,7 +6,7 @@ import { createInsertSchema } from "drizzle-zod";
 
 // Drizzle ORM Tables
 export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
+  id: text("id").primaryKey(), // Changed from uuid to text for Clerk IDs
   name: text("name").notNull().default("User"),
   level: integer("level").notNull().default(1),
   totalXP: integer("total_xp").notNull().default(0),
@@ -16,7 +16,7 @@ export const users = pgTable("users", {
 
 export const habits = pgTable("habits", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // Changed from uuid to text
   name: text("name").notNull(),
   description: text("description"),
   category: text("category", { enum: ["Health", "Productivity", "Personal", "Learning", "Social", "Finance"] }).notNull(),
@@ -31,7 +31,7 @@ export const habits = pgTable("habits", {
 
 export const completions = pgTable("completions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // Changed from uuid to text
   habitId: uuid("habit_id").notNull().references(() => habits.id, { onDelete: "cascade" }),
   date: text("date").notNull(), // YYYY-MM-DD format
   completed: boolean("completed").notNull(),
@@ -41,7 +41,7 @@ export const completions = pgTable("completions", {
 
 export const achievements = pgTable("achievements", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // Changed from uuid to text
   name: text("name").notNull(),
   description: text("description").notNull(),
   icon: text("icon").notNull(),
@@ -52,7 +52,7 @@ export const achievements = pgTable("achievements", {
 
 export const streaks = pgTable("streaks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // Changed from uuid to text
   habitId: uuid("habit_id").notNull().references(() => habits.id, { onDelete: "cascade" }),
   current: integer("current").notNull().default(0),
   best: integer("best").notNull().default(0),

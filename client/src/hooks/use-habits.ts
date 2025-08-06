@@ -1,25 +1,32 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
+import { useUser as useClerkUser, useAuth } from '@clerk/clerk-react';
 import { Habit, Completion, Streak, InsertHabit } from "@shared/schema";
 import { storage } from "@/lib/storage";
 import { calculateStreaks, getTodayCompletionStats } from "@/lib/calculations";
 import { useToast } from "@/hooks/use-toast";
 
-let CURRENT_USER_ID = 'temp-user-id'; // Will be replaced with actual UUID from server
-
 export function useHabits() {
+  const { user: clerkUser, isLoaded: clerkLoaded } = useClerkUser();
+  const { getToken } = useAuth();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [streaks, setStreaks] = useState<Streak[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // API helper functions with localStorage fallback
+  // API helper functions with authentication
   const apiCall = async (url: string, options?: RequestInit) => {
     console.log(`[API] Calling: ${options?.method || 'GET'} ${url}`);
+    
     try {
+      // Get JWT token from Clerk
+      const token = await getToken();
+      console.log('[API] Token obtained:', !!token);
+      
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...options?.headers,
         },
         ...options,
@@ -38,21 +45,30 @@ export function useHabits() {
     }
   };
 
-  // Get the current user ID from server
-  const getCurrentUserId = async () => {
-    try {
-      const response = await apiCall('/api/default-user');
-      CURRENT_USER_ID = response.userId;
-      console.log('[API] Got current user ID:', CURRENT_USER_ID);
-      return CURRENT_USER_ID;
-    } catch (error) {
-      console.warn('[API] Failed to get user ID, using fallback');
-      return 'temp-user-id';
+  // Get the current user ID from Clerk
+  const getCurrentUserId = () => {
+    if (!clerkUser?.id) {
+      console.error('[HABITS] Clerk user not found:', clerkUser);
+      throw new Error('User not authenticated - Clerk user ID is undefined');
     }
+    console.log('[HABITS] Using Clerk user ID:', clerkUser.id);
+    return clerkUser.id;
   };
 
   // Load data from API with localStorage fallback
   useEffect(() => {
+    // Don't load data if Clerk hasn't loaded yet or user is not authenticated
+    if (!clerkLoaded || !clerkUser?.id) {
+      console.log('[HABITS] Waiting for Clerk to load or user to authenticate');
+      console.log('[HABITS] Clerk loaded:', clerkLoaded);
+      console.log('[HABITS] Clerk user ID:', clerkUser?.id);
+      if (clerkLoaded && !clerkUser?.id) {
+        // Clerk loaded but no user - this means user is not signed in
+        setIsLoading(false);
+      }
+      return;
+    }
+
     const loadData = async () => {
       try {
         setIsLoading(true);
@@ -62,7 +78,7 @@ export function useHabits() {
           console.log('[API] Loading habits data from database...');
           
           // Get the current user ID first
-          const userId = await getCurrentUserId();
+          const userId = getCurrentUserId();
           
           const [habitsData, completionsData, streaksData] = await Promise.all([
             apiCall(`/api/habits?userId=${userId}`),
@@ -124,12 +140,13 @@ export function useHabits() {
     };
 
     loadData();
-  }, [toast]);
+  }, [toast, clerkLoaded, clerkUser?.id]);
 
   const createHabit = useCallback(async (habitData: InsertHabit) => {
     try {
       // Get the current user ID first
-      const userId = await getCurrentUserId();
+      const userId = getCurrentUserId();
+      console.log('[HABITS] Creating habit for user ID:', userId);
       
       const newHabitData = {
         ...habitData,
@@ -140,58 +157,87 @@ export function useHabits() {
       };
 
       let newHabit: Habit;
+      let isApiSuccess = false;
       
       // Try API first
       try {
+        console.log('[HABITS] Attempting to create habit via API...');
         newHabit = await apiCall('/api/habits', {
           method: 'POST',
           body: JSON.stringify(newHabitData),
         });
+        
+        console.log('[API] Habit created successfully in database:', newHabit);
+        isApiSuccess = true;
+        
+        // Update localStorage as backup only after successful API call
+        storage.setHabits([...habits, newHabit]);
+        
       } catch (apiError) {
+        console.error('[API] Failed to create habit in database:', apiError);
+        
+        // Check if this is a user not found error
+        if (apiError instanceof Error && apiError.message.includes('User not found')) {
+          toast({
+            title: "User Setup Required",
+            description: "Please wait while we set up your account...",
+            variant: "destructive"
+          });
+          throw new Error('User not found in database. Please retry after account setup.');
+        }
+        
         // Fallback to localStorage with generated ID
         console.warn('API unavailable, using localStorage for creating habit');
         newHabit = {
           ...newHabitData,
           id: `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         } as unknown as Habit;
-        storage.addHabit(newHabit);
+        
+        // Save to localStorage only
+        storage.setHabits([...habits, newHabit]);
       }
 
-      const updatedHabits = [...habits, newHabit];
-      setHabits(updatedHabits);
-      
-      // Always update localStorage as backup
-      storage.addHabit(newHabit);
+      // Update state with the new habit (either from API or localStorage)
+      setHabits(prev => [...prev, newHabit]);
 
-      // Initialize streak for new habit
-      const newStreakData = {
-        userId,
-        habitId: newHabit.id,
-        current: 0,
-        best: 0,
-        lastCompletionDate: null
-      };
+      // Only create streaks and completions if the API call was successful
+      // Don't create them for localStorage-only habits as the IDs won't work with the API
+      if (isApiSuccess) {
+        // Initialize streak for new habit
+        const newStreakData = {
+          userId,
+          habitId: newHabit.id,
+          current: 0,
+          best: 0,
+          lastCompletionDate: null
+        };
 
-      let newStreak: Streak;
-      
-      // Try API first for streak
-      try {
-        newStreak = await apiCall('/api/streaks', {
-          method: 'POST',
-          body: JSON.stringify(newStreakData),
-        });
-      } catch (apiError) {
-        // Fallback to localStorage with generated ID
-        newStreak = {
-          ...newStreakData,
-          id: `streak_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        } as Streak;
-        storage.updateStreak(newHabit.id, newStreak);
+        let newStreak: Streak;
+        
+        // Try API first for streak
+        try {
+          newStreak = await apiCall('/api/streaks', {
+            method: 'POST',
+            body: JSON.stringify(newStreakData),
+          });
+          
+          console.log('[API] Streak created successfully in database:', newStreak);
+          
+          // Update localStorage as backup only after successful API call
+          const updatedStreaks = [...streaks, newStreak];
+          setStreaks(updatedStreaks);
+          storage.setStreaks(updatedStreaks);
+          
+        } catch (apiError) {
+          console.error('[API] Failed to create streak in database:', apiError);
+          
+          // Don't create local streak since the habit is in the database
+          // This would cause inconsistency
+          console.warn('Skipping streak creation due to API failure');
+        }
+      } else {
+        console.warn('Skipping streak creation for localStorage-only habit');
       }
-
-      const updatedStreaks = [...streaks, newStreak];
-      setStreaks(updatedStreaks);
-      storage.updateStreak(newHabit.id, newStreak);
 
       toast({
         title: "Success",
@@ -203,7 +249,7 @@ export function useHabits() {
       console.error('Error creating habit:', error);
       toast({
         title: "Error",
-        description: "Failed to create habit",
+        description: error instanceof Error ? error.message : "Failed to create habit",
         variant: "destructive"
       });
       throw error;
@@ -313,13 +359,55 @@ export function useHabits() {
   const toggleHabitCompletion = useCallback(async (habitId: string, date?: string) => {
     try {
       // Get the current user ID first
-      const userId = await getCurrentUserId();
+      const userId = getCurrentUserId();
       
       const completionDate = date || new Date().toISOString().split('T')[0];
       const existingCompletion = completions.find(c => 
         c.habitId === habitId && c.date === completionDate
       );
 
+      // Check if this is a localStorage-only habit (non-UUID ID)
+      const isLocalHabit = habitId.startsWith('habit_');
+      
+      if (isLocalHabit) {
+        // Handle localStorage-only habits
+        console.warn('Toggling completion for localStorage-only habit');
+        
+        const newCompletionData = {
+          id: `completion_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          userId,
+          habitId,
+          date: completionDate,
+          completed: !existingCompletion?.completed,
+          value: null,
+          timestamp: new Date()
+        } as Completion;
+
+        let updatedCompletions: Completion[];
+        
+        if (existingCompletion) {
+          updatedCompletions = completions.map(c => 
+            c.id === existingCompletion.id ? { ...existingCompletion, completed: newCompletionData.completed, timestamp: newCompletionData.timestamp } : c
+          );
+        } else {
+          updatedCompletions = [...completions, newCompletionData];
+        }
+        
+        setCompletions(updatedCompletions);
+        storage.setCompletions(updatedCompletions);
+
+        const habit = habits.find(h => h.id === habitId);
+        const action = newCompletionData.completed ? "completed" : "uncompleted";
+        
+        toast({
+          title: "Success",
+          description: `${habit?.name} ${action}!`
+        });
+
+        return newCompletionData;
+      }
+
+      // Handle database habits (normal flow)
       const newCompletionData = {
         // Don't set id for new completions, let database generate UUID
         // Only include id if updating existing completion
@@ -357,24 +445,36 @@ export function useHabits() {
           });
           updatedCompletions = [...completions, newCompletion];
         }
+        
+        console.log('[API] Completion toggled successfully in database:', newCompletion);
+        
+        // Update localStorage as backup only after successful API call
+        setCompletions(updatedCompletions);
+        storage.setCompletions(updatedCompletions);
+        
       } catch (apiError) {
-        // Fallback to localStorage
+        console.error('[API] Failed to toggle completion in database:', apiError);
+        
+        // Fallback to localStorage with generated ID if needed
         console.warn('API unavailable, using localStorage for completion toggle');
-        newCompletion = newCompletionData as Completion;
         
         if (existingCompletion) {
+          newCompletion = { ...existingCompletion, ...newCompletionData } as Completion;
           updatedCompletions = completions.map(c => 
             c.id === existingCompletion.id ? newCompletion : c
           );
         } else {
+          newCompletion = {
+            ...newCompletionData,
+            id: `completion_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          } as Completion;
           updatedCompletions = [...completions, newCompletion];
         }
-        storage.addCompletion(newCompletion);
+        
+        // Save to localStorage only
+        setCompletions(updatedCompletions);
+        storage.setCompletions(updatedCompletions);
       }
-
-      setCompletions(updatedCompletions);
-      // Always update localStorage as backup
-      storage.addCompletion(newCompletion);
 
       // Recalculate streaks
       const updatedStreaks = calculateStreaks(habits, updatedCompletions);
