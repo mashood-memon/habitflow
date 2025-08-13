@@ -93,8 +93,8 @@ export function useUser() {
               name: clerkUser.firstName || clerkUser.username || 'User',
               level: 1,
               totalXP: 0,
-              theme: theme,
-              joinDate: new Date().toISOString()
+              theme: theme
+              // joinDate will be set automatically by database defaultNow()
             };
             
             try {
@@ -147,6 +147,53 @@ export function useUser() {
               console.log('[API] Default achievements created in database');
             } catch (error) {
               console.warn('Failed to save achievements to API');
+            }
+          } else {
+            // Check if we have the right number of default achievements
+            const expectedCount = DEFAULT_ACHIEVEMENTS.length;
+            console.log('[API] Found achievements:', userAchievements.length, 'Expected:', expectedCount);
+            
+            // If we have duplicates or wrong count, clean up
+            if (userAchievements.length !== expectedCount) {
+              console.log('[API] Detected duplicate achievements, need cleanup');
+              
+              // Group achievements by name to identify duplicates
+              const achievementsByName = new Map<string, Achievement[]>();
+              userAchievements.forEach(achievement => {
+                const name = achievement.name;
+                if (!achievementsByName.has(name)) {
+                  achievementsByName.set(name, []);
+                }
+                achievementsByName.get(name)!.push(achievement);
+              });
+              
+              // Keep only the first achievement for each name, mark others for deletion
+              const toKeep: Achievement[] = [];
+              const toDelete: string[] = [];
+              
+              achievementsByName.forEach((achievements, name) => {
+                toKeep.push(achievements[0]); // Keep the first one
+                for (let i = 1; i < achievements.length; i++) {
+                  toDelete.push(achievements[i].id); // Mark duplicates for deletion
+                }
+              });
+              
+              // Delete duplicates from database
+              if (toDelete.length > 0) {
+                console.log('[API] Deleting duplicate achievements:', toDelete);
+                try {
+                  await Promise.all(toDelete.map(id =>
+                    apiCall(`/api/achievements/${id}`, {
+                      method: 'DELETE'
+                    }).catch((err) => console.warn('Failed to delete achievement:', id, err))
+                  ));
+                  console.log('[API] Duplicate achievements deleted');
+                } catch (error) {
+                  console.warn('Failed to delete duplicate achievements:', error);
+                }
+              }
+              
+              userAchievements = toKeep;
             }
           }
           

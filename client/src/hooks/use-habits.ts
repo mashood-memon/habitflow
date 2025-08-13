@@ -115,7 +115,7 @@ export function useHabits() {
             setCompletions(localCompletions);
             
             // Recalculate streaks to ensure accuracy
-            const updatedStreaks = calculateStreaks(localHabits, localCompletions);
+            const updatedStreaks = calculateStreaks(localHabits, localCompletions, streaks);
             setStreaks(updatedStreaks);
             storage.setStreaks(updatedStreaks);
           } else {
@@ -150,10 +150,10 @@ export function useHabits() {
       
       const newHabitData = {
         ...habitData,
-        userId,
+        userId
         // Don't set id, let database generate UUID
-        createdDate: new Date(),
-        isActive: true
+        // Don't set createdDate, let database set defaultNow()
+        // Don't set isActive, let database use default true
       };
 
       let newHabit: Habit;
@@ -416,8 +416,8 @@ export function useHabits() {
         habitId,
         date: completionDate,
         completed: !existingCompletion?.completed,
-        value: null,
-        timestamp: new Date()
+        value: null
+        // Don't set timestamp, let database use defaultNow()
       };
 
       let newCompletion: Completion;
@@ -430,8 +430,8 @@ export function useHabits() {
           newCompletion = await apiCall(`/api/completions/${existingCompletion.id}`, {
             method: 'PUT',
             body: JSON.stringify({
-              completed: newCompletionData.completed,
-              timestamp: newCompletionData.timestamp
+              completed: newCompletionData.completed
+              // Don't send timestamp, let database handle it
             }),
           });
           updatedCompletions = completions.map(c => 
@@ -477,7 +477,7 @@ export function useHabits() {
       }
 
       // Recalculate streaks
-      const updatedStreaks = calculateStreaks(habits, updatedCompletions);
+      const updatedStreaks = calculateStreaks(habits, updatedCompletions, streaks);
       setStreaks(updatedStreaks);
 
       // Update streaks in API and localStorage
@@ -567,6 +567,7 @@ export function useHabits() {
     deleteHabit,
     toggleHabitCompletion,
     getTodayHabits,
-    getTodayStats
+    getTodayStats,
+    getCurrentUserId
   };
 }

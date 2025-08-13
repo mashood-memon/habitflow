@@ -11,7 +11,6 @@ import { useHabits } from "@/hooks/use-habits";
 import { useUser } from "@/hooks/use-user";
 import { getHeatMapData, getWeeklyCompletionRate } from "@/lib/calculations";
 import { InsertHabit } from "@shared/schema";
-import { AuthDebug } from "@/components/auth-debug";
 
 export function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,7 +25,8 @@ export function Dashboard() {
     updateHabit,
     toggleHabitCompletion, 
     getTodayHabits, 
-    getTodayStats 
+    getTodayStats,
+    getCurrentUserId
   } = useHabits();
   
   const { 
@@ -77,7 +77,7 @@ export function Dashboard() {
         unit: habit.unit,
         icon: habit.icon,
         isActive: habit.isActive,
-        userId: "temp-user-id" // Temporary until we implement authentication
+        userId: getCurrentUserId() // Use actual authenticated user ID
       };
       setEditingHabit(editableHabit);
       setIsModalOpen(true);
@@ -112,9 +112,6 @@ export function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Authentication Debug Panel */}
-      <AuthDebug />
-      
       {/* Daily Overview Section */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Daily Progress Circle */}

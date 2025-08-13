@@ -1,14 +1,22 @@
 import { Habit, Completion, Streak } from "@shared/schema";
 import { format, parseISO, isToday, subDays, startOfDay } from "date-fns";
 
-export function calculateStreaks(habits: Habit[], completions: Completion[]): Streak[] {
+export function calculateStreaks(habits: Habit[], completions: Completion[], existingStreaks: Streak[] = []): Streak[] {
   return habits.map(habit => {
     const habitCompletions = completions
       .filter(c => c.habitId === habit.id && c.completed)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     if (habitCompletions.length === 0) {
-      return { habitId: habit.id, current: 0, best: 0 };
+      const existingStreak = existingStreaks.find(s => s.habitId === habit.id);
+      return { 
+        id: existingStreak?.id || '',
+        userId: existingStreak?.userId || '',
+        habitId: habit.id, 
+        current: 0, 
+        best: 0, 
+        lastCompletionDate: null 
+      };
     }
 
     let currentStreak = 0;
@@ -60,10 +68,12 @@ export function calculateStreaks(habits: Habit[], completions: Completion[]): St
     bestStreak = Math.max(bestStreak, tempStreak, currentStreak);
 
     return {
+      id: existingStreaks.find(s => s.habitId === habit.id)?.id || '',
+      userId: existingStreaks.find(s => s.habitId === habit.id)?.userId || '',
       habitId: habit.id,
       current: currentStreak,
       best: bestStreak,
-      lastCompletionDate: habitCompletions[0]?.date
+      lastCompletionDate: habitCompletions[0]?.date || null
     };
   });
 }

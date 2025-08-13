@@ -23,6 +23,17 @@ export function Achievements() {
     return acc;
   }, {} as Record<string, typeof achievements>);
 
+  // Debug duplicate IDs
+  const ids = achievements.map(a => a.id);
+  const duplicateIds = ids.filter((id, index) => ids.indexOf(id) !== index);
+  if (duplicateIds.length > 0) {
+    console.log('[ACHIEVEMENTS DEBUG] DUPLICATE IDs FOUND:', duplicateIds);
+  }
+
+  console.log('[ACHIEVEMENTS DEBUG] Grouped by category:', Object.entries(achievementsByCategory).map(([cat, achs]) => 
+    `${cat}: ${achs.length} (${achs.map(a => a.id).join(', ')})`
+  ));
+
   const categoryNames = {
     streak: "Streak Achievements",
     completion: "Completion Achievements", 

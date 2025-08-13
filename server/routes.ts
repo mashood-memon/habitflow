@@ -142,12 +142,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const habitData = {
         ...req.body,
-        userId: req.userId,
-        // Remove id, let the database generate UUID
-        createdDate: req.body.createdDate ? new Date(req.body.createdDate) : new Date(),
-        isActive: req.body.isActive !== undefined ? req.body.isActive : true
+        userId: req.userId
+        // Let database set createdDate and isActive defaults
       };
       // Remove the id field if it exists, let DB generate UUID
+      delete habitData.id;
       delete habitData.id;
       console.log('[API] Processed habit data:', habitData);
       const habit = await storage.createHabit(habitData);
@@ -159,15 +158,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/habits/:id", requireAuth, async (req, res) => {
+  app.put("/api/habits/:id", requireAuth, async (req: any, res) => {
     try {
-      const habit = await storage.updateHabit(req.params.id, req.body);
+      console.log('[API] Updating habit:', req.params.id, 'with data:', req.body);
+      // Extract only the fields that should be updated, ensuring userId is from auth
+      const { name, description, category, frequency, customDays, target, unit, icon, isActive } = req.body;
+      const habitData = {
+        name,
+        description,
+        category,
+        frequency,
+        customDays,
+        target,
+        unit,
+        icon,
+        isActive,
+        userId: req.userId // Use authenticated user ID, not from request body
+      };
+      console.log('[API] Updated habit data with correct userId:', habitData);
+      const habit = await storage.updateHabit(req.params.id, habitData);
       if (!habit) {
+        console.log('[API] Habit not found:', req.params.id);
         return res.status(404).json({ message: "Habit not found" });
       }
+      console.log('[API] Habit updated successfully:', habit);
       res.json(habit);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update habit" });
+      console.error('[API] Error updating habit:', error);
+      res.status(500).json({ message: "Failed to update habit", error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
@@ -197,9 +215,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[API] Creating completion with data:', req.body);
       const completionData = {
         ...req.body,
-        userId: req.userId,
-        // Remove id, let the database generate UUID
-        timestamp: req.body.timestamp ? new Date(req.body.timestamp) : new Date()
+        userId: req.userId
+        // Let database set timestamp default
       };
       // Remove the id field if it exists, let DB generate UUID
       delete completionData.id;
@@ -283,26 +300,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Achievement routes
+  app.delete("/api/achievements/:id", requireAuth, async (req: any, res) => {
+    try {
+      await storage.deleteAchievement(req.params.id);
+      res.json({ message: "Achievement deleted successfully" });
+    } catch (error) {
+      console.error('[API] Error deleting achievement:', error);
+      res.status(500).json({ message: "Failed to delete achievement" });
+    }
+  });
+
   app.get("/api/achievements", requireAuth, async (req: any, res) => {
     try {
       const achievements = await storage.getAchievements(req.userId);
       res.json(achievements);
     } catch (error) {
+      console.error('[API] Error getting achievements:', error);
       res.status(500).json({ message: "Failed to get achievements" });
     }
   });
 
   app.post("/api/achievements", requireAuth, async (req: any, res) => {
     try {
+      console.log('[API] Creating achievement with data:', req.body);
       const achievementData = {
         ...req.body,
-        userId: req.userId,
-        id: req.body.id || `achievement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        userId: req.userId
+        // Let database set id default
       };
+      // Remove the id field if it exists, let DB generate UUID
+      delete achievementData.id;
+      console.log('[API] Processed achievement data:', achievementData);
       const achievement = await storage.createAchievement(achievementData);
+      console.log('[API] Achievement created successfully:', achievement);
       res.json(achievement);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create achievement" });
+      console.error('[API] Error creating achievement:', error);
+      res.status(500).json({ message: "Failed to create achievement", error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 

@@ -25,6 +25,7 @@ export interface IStorage {
   getAchievements(userId: string): Promise<Achievement[]>;
   createAchievement(achievement: InsertAchievement): Promise<Achievement>;
   updateAchievement(id: string, data: Partial<InsertAchievement>): Promise<Achievement | undefined>;
+  deleteAchievement(id: string): Promise<void>;
   
   // Streak methods
   getStreaks(userId: string): Promise<Streak[]>;
@@ -146,6 +147,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(achievements.id, id))
       .returning();
     return achievement || undefined;
+  }
+
+  async deleteAchievement(id: string): Promise<void> {
+    await db.delete(achievements).where(eq(achievements.id, id));
   }
 
   // Streak methods
